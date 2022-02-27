@@ -1,0 +1,8 @@
+{
+  "name": "@ideadesignmedia/db.js",
+  "version": "1.0.0",
+  "main": "db.js",
+  "repository": "https://github.com/ideadesignmedia/db.js.git",
+  "author": "ideadesignmedia <samwagnermedia@gmail.com>",
+  "license": "MIT"
+}

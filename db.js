@@ -15,7 +15,7 @@ class Data {
         if (!this._t) {
             this._t = t
         } else {
-            this._u = new Date
+            this._u = t
         }
     }
 }
@@ -112,7 +112,7 @@ class db {
             }
         })
     }
-    findData = obj => {
+    find = obj => {
         return new Promise(async (res, rej) => {
             if (!obj || typeof obj !== 'object') {
                 if (typeof obj === 'function') {
@@ -143,18 +143,18 @@ class db {
             }
             let complete
             if (id) {
-                complete = await this.find(['id', id])
+                complete = await find(['id', id])
             } else {
-                complete = await this.find(Object.entries(obj))
+                complete = await find(Object.entries(obj))
             }
-            if (complete && complete.recordData) complete.data = await this.readRecord(complete.recordData).catch(e => {
+            if (complete && complete._recordData) complete.data = await this.readRecord(complete._recordData).catch(e => {
                 console.log(e)
-                complete.recordData = null
+                complete._recordData = null
                 this.save(complete).then((result) => {
                     return res(result)
                 }).catch(e => {
                     console.log(e)
-                    this.deleteData(complete._id).then(() => {
+                    this.delete(complete._id).then(() => {
                         this.save().then(() => {
                             return rej('RECORD CORRUPTED. REMOVED.')
                         }).catch(e => {
@@ -228,13 +228,13 @@ class db {
             }
             let reason = []
             for (let i = 0; i < results.length; i++) {
-                if ((results[i].recordData && !optionKeys) || (optionKeys && optionKeys.includes('data') && results[i].recordData)) {
-                    results[i].data = await this.readRecord(results[i].recordData).catch(async e => {
+                if ((results[i]._recordData && !optionKeys) || (optionKeys && optionKeys.includes('data') && results[i]._recordData)) {
+                    results[i].data = await this.readRecord(results[i]._recordData).catch(async e => {
                         console.log(e)
-                        results[i].recordData = null
+                        results[i]._recordData = null
                         await save(results[i]).catch(e => {
                             console.log(e)
-                            this.deleteData(u._id).then(() => {
+                            this.delete(u._id).then(() => {
                                 this.save().then(() => {
                                     console.log('RECORD CORRUPTED. REMOVED.', u._id)
                                     return null
@@ -324,15 +324,15 @@ class db {
             return res(true)
         })
     }
-    deleteData = id => {
+    delete = id => {
         return new Promise(async (res, rej) => {
             if (!id || typeof id !== 'string') return rej('NO ID TO DELETE')
             let result = null
             this.data = [...this.data].filter(u => {
                 if (u._id === id) {
                     result = u
-                    if (u.recordData) {
-                        fs.unlink(u.recordData, () => { })
+                    if (u._recordData) {
+                        fs.unlink(u._recordData, () => { })
                         return false
                     } else {
                         return false
@@ -369,9 +369,9 @@ class db {
             let z = []
             for (let i = 0; i < this.data.length; i++) {
                 if (ids.includes(this.data[i]._id)) {
-                    if (this.data[i].recordData) {
+                    if (this.data[i]._recordData) {
                         try {
-                            await fs.unlinkSync(this.data[i].recordData)
+                            await fs.unlinkSync(this.data[i]._recordData)
                         } catch { }
                     }
                     z.push(this.data.splice(i, 1)[0])
@@ -419,17 +419,16 @@ class db {
             })
         })
     }
-    checkRecord = id => {
+    getRecord = _id => {
         return new Promise((res, rej) => {
-            if (!id) return rej('NO ID')
-            this.findData({ id: id }).then(result => {
-                if (result.recordData) {
-                    this.readRecord(result.recordData).then(result => {
-                        if (!result) return res(true)
-                        return res(false, result)
+            if (!_id) return rej('NO ID')
+            this.find({ _id }).then(result => {
+                if (result._recordData) {
+                    this.readRecord(result._recordData).then(result => {
+                        if (!result) return rej('Missing record')
+                        return res(result)
                     }).catch(e => {
-                        console.log(e)
-                        return res(true)
+                        return rej(e)
                     })
                 } else {
                     return rej({ record: true })
@@ -460,13 +459,13 @@ class db {
     runRecords = async () => {
         let m = [...this.data]
         for (let i = 0; i < m.length; i++) {
-            if (m[i] && m[i].data && (typeof m[i].data === 'object') && !m[i].recordData) {
+            if (m[i] && m[i].data && (typeof m[i].data === 'object') && !m[i]._recordData) {
                 let id = m[i]._id
                 let d = m[i].data
-                m[i].recordData = await this.createRecord(id, d).catch(e => console.log(e))
+                m[i]._recordData = await this.createRecord(id, d).catch(e => console.log(e))
                 m[i].data = null
-            } else if (m[i] && m[i].data && m[i].data !== null && typeof m[i].data === 'object' && m[i].recordData) {
-                await this.replaceRecord(m[i].recordData, m[i].data).then(() => {
+            } else if (m[i] && m[i].data && m[i].data !== null && typeof m[i].data === 'object' && m[i]._recordData) {
+                await this.replaceRecord(m[i]._recordData, m[i].data).then(() => {
                     m[i].data = null
                 }).catch(e => {
                     if (e && e.code !== 'ENOENT' && e.code !== 'EPERM') { console.log(e) }
@@ -483,7 +482,72 @@ class db {
         })
     }
 }
+class Model extends Data {
+    constructor(props, name, validation) {
+        super(props, name, validation)
+        if (typeof validation === 'function') validation(props)
+        this._m = name
+    }
+}
+function construct(model, data) {
+    return model(data)
+}
+const buildModel = (name, validation) => data => construct(data => {
+    return new Model(data, name, validation)
+}, data)
+function makeModel(database, name, validator) {
+    class ModelClass {
+        constructor(data) {
+            this.name = name
+            this.validator = validator
+            this.model = buildModel(this.name, this.validator)
+            if (data) this._doc = this.model(data)
+        }
+        save(data) {
+            return new Promise((res, rej) => {
+                database.save(data ? { ...data, _m: this.name } : this._doc).then(r => {
+                    return res(r)
+                }).catch(e => rej(e))
+            })
+        }
+        find(query) {
+            return new Promise((res, rej) => {
+                database.find(typeof query === 'function' ? query : { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+            })
+        }
+        findAll(query) {
+            return new Promise((res, rej) => {
+                database.findAll(typeof query === 'function' ? query : { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+            })
+        }
+        delete(_id) {
+            return new Promise((res, rej) => {
+                database.delete(_id).then(r => res(r)).catch(e => rej(e))
+            })
+        }
+        deleteOne(query) {
+            return new Promise((res, rej) => {
+                database.deleteMany(a => database.compare(a, typeof query === 'function' ? query : { ...query, _m: this.name })).then(r => res(r)).catch(e => rej(e))
+            })
+        }
+        deleteMany(query) {
+            return new Promise((res, rej) => {
+                database.deleteMany(typeof query === 'function' ? query : { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+            })
+        }
+    }
+    return ModelClass
+}
+const makeModels = (database, models) => {
+    return models.map(u => ({ name: u.name, model: makeModel(database, u.name, u.validator) })).reduce((a, b) => {
+        a[b.name] = b.model
+        return a
+    }, {})
+}
 module.exports = {
     Data,
+    Model,
+    makeModels,
+    makeModel,
     db
 }
