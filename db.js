@@ -2,7 +2,7 @@ const fs = require('fs')
 const crypto = require('crypto')
 const path = require('path')
 const DBPATH = process.env.DBPATH || './database'
-const DBDEFAULT = path.resolve(path.join(DBPATH, 'data.json'))
+const DBDEFAULT = path.resolve(path.join(DBPATH, 'data'))
 class Data {
     constructor(props) {
         let t = new Date()
