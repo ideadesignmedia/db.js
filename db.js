@@ -143,7 +143,7 @@ class db {
             }
             let complete
             if (id) {
-                complete = await find(['id', id])
+                complete = await find([['_id', id]])
             } else {
                 complete = await find(Object.entries(obj))
             }
