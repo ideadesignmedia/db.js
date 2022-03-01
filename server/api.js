@@ -71,7 +71,7 @@ wss.on('connection', function connection(ws, req) {
                     break
                 }
                 case 'save': {                    
-                    db.save(data).then(result => {
+                    db.save(data ? new DB.Data(data) : null).then(result => {
                         ws.reply({type: 'response', _id, data: result})
                     }).catch(e => {
                         ws.reply({type: 'error', _id, message: e})

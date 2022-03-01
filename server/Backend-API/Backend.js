@@ -1,4 +1,5 @@
 const ws = require('ws')
+//TODO: ADD THE WAIT FOR CONNECTION LOGIC TO PREVENT SEND BEFORE OPEN ERROR
 class DatabaseConnection {
     constructor(ws, username, password) {
         if (!ws) throw new Error('Missing websocket address')
@@ -28,6 +29,36 @@ class DatabaseConnection {
                 if (err) return rej(err)
                 return res(data)
             })
+        })
+    }
+    save(data) {
+        return new Promise((res, rej) => {
+            this.handle('save', data).then(r => res(r)).catch(e => rej(e))
+        })
+    }
+    find(query) {
+        return new Promise((res, rej) => {
+            this.handle('find', query).then(r => res(r)).catch(e => rej(e))
+        })
+    }
+    findAll(query) {
+        return new Promise((res, rej) => {
+            this.handle('findAll', query).then(r => res(r)).catch(e => rej(e))
+        })
+    }
+    delete(_id) {
+        return new Promise((res, rej) => {
+            this.handle('delete', { _id }).then(r => res(r)).catch(e => rej(e))
+        })
+    }
+    deleteOne(query) {
+        return new Promise((res, rej) => {
+            this.handle('deleteOne', query).then(r => res(r)).catch(e => rej(e))
+        })
+    }
+    deleteMany(query) {
+        return new Promise((res, rej) => {
+            this.handle('deleteMany', query).then(r => res(r)).catch(e => rej(e))
         })
     }
     makeWS() {

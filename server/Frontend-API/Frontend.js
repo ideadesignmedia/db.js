@@ -160,9 +160,9 @@ class db {
       clearTimeout((this.socketWaitForAuth))
       try {
         this.ws = new WebSocket(this.DBURI)
-        this.ws.onopen = function (e) { this.heartbeat = setInterval(() => { this.checkws() }, 10000); };
-        this.waitForSocketConnection(this.ws, () => { if (this.auth && typeof this.auth !== 'undefined') this.ws.sendData({ type: 'auth', data: { auth: this.app.state.auth } }) })
-        this.ws.onmessage = function incoming(data) { this.runSocket(data) }
+        this.ws.onopen = (e) => { this.heartbeat = setInterval(() => { this.checkws() }, 10000); };
+        this.waitForSocketConnection(this.ws, () => { if (this.auth && typeof this.auth !== 'undefined') this.ws.sendData({ type: 'auth', data: { auth: this.auth } }) })
+        this.ws.onmessage = data => { this.runSocket(data) }
         this.ws.sendData = (data) => {
           if (!this.authenticated && data.type !== 'auth') {
             this.waitForAuth(this.ws, data => { this.ws.send(JSON.stringify(data)) }, data)
@@ -273,10 +273,11 @@ const makeModels = (database, models) => {
       return a
   }, {})
 }
-module.exports = {
-  db,
-  Data,
-  Model,
-  makeModel,
-  makeModels
-}
+/*Only can export from module*/
+//module.exports = {
+//   db,
+//   Data,
+//   Model,
+//   makeModel,
+//   makeModels
+// }
