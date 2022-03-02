@@ -485,7 +485,8 @@ class db {
 class Model extends Data {
     constructor(props, name, validation) {
         super(props, name, validation)
-        if (typeof validation === 'function') validation(props)
+        if (typeof validation === 'function') props = validation(props)
+        if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
         this._m = name
     }
 }

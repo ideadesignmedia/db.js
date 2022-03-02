@@ -1,11 +1,10 @@
 const ws = require('ws')
 //TODO: ADD THE WAIT FOR CONNECTION LOGIC TO PREVENT SEND BEFORE OPEN ERROR
 class DatabaseConnection {
-    constructor(ws, username, password) {
+    constructor(ws, auth) {
         if (!ws) throw new Error('Missing websocket address')
         this.ws = ws
-        this.username = username
-        this.password = password
+        this.auth = auth
         this.lastPing = null
         this.lastPingTime = null
         this.currentPing = 0
@@ -18,7 +17,7 @@ class DatabaseConnection {
             let _id = `${new Date().getTime()}${Math.floor(Math.random() * 1000)}`
             this.que.push({ type, data, _id, callback })
         }
-        this.app.send(JSON.stringify({ type, data }))
+        this.app.sendData(JSON.stringify({ type, data }))
     }
     handle = (type, data) => {
         return new Promise((res, rej) => {
@@ -61,12 +60,41 @@ class DatabaseConnection {
             this.handle('deleteMany', query).then(r => res(r)).catch(e => rej(e))
         })
     }
+    waitForSocketConnection = (socket, callback, data, timer = 1000) => {
+        clearTimeout((this.socketWait))
+        if (!callback || typeof callback !== 'function') return
+        if (socket.readyState === 0) {
+            this.socketWait = setTimeout(() => { this.waitForSocketConnection(socket, callback, data, timer) }, timer)
+        } else if (socket.readyState === 1) {
+            callback(data)
+        } else {
+            this.socketWait = this.waitForSocketConnection(socket, callback, data, timer)
+        }
+    }
+    waitForAuth = (socket, callback, data, timer = 1000, rounds = 0) => {
+        clearTimeout((this.socketWaitForAuth))
+        if (!callback || typeof callback !== 'function' || rounds > 10) return
+        if (!this.authenticated) {
+            this.socketWaitForAuth = setTimeout(() => { this.waitForAuth(socket, callback, data, timer) }, timer, rounds + 1)
+        } else {
+            callback(data)
+        }
+    }
     makeWS() {
         clearInterval(this.pingcheck)
         let server = new ws(this.ws, {
             rejectUnauthorized: false,
             strictSSL: false
         })
+        server.sendData = data => {
+            if (!this.authenticated && data.type !== 'auth') {
+                this.waitForAuth(this.ws, data => { this.ws.send(JSON.stringify(data)) }, data)
+            } else if (this.ws.readyState !== 1) {
+                this.waitForSocketConnection(this.ws, data => { this.ws.send(JSON.stringify(data)) }, data)
+            } else {
+                this.ws.send(JSON.stringify(data))
+            }
+        }
         server.on('error', (e) => {
             if (!/Unexpected server response/.test(e)) {
                 console.log(e)
@@ -78,11 +106,9 @@ class DatabaseConnection {
                 }, this.attempts * 1000 * 10)
             }
         })
+        this.waitForAuth(server, () => this.sendPing())
+        this.waitForSocketConnection(server, (data) => server.send(data), JSON.stringify({ type: 'auth', data: {auth: this.auth} }), 2)
         server.on('open', () => {
-            let auth = {}
-            auth[this.username] = this.password
-            this.sendPing()
-            server.send(JSON.stringify({ type: 'auth', data: auth }))
             this.pingcheck = setInterval(() => this.sendPing(), 10000)
         })
         server.on('close', (e) => {
@@ -167,7 +193,8 @@ class Data {
 class Model extends Data {
     constructor(props, name, validation) {
         super(props, name, validation)
-        if (typeof validation === 'function') validation(props)
+        if (typeof validation === 'function') props = validation(props)
+        if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
         this._m = name
     }
 }
