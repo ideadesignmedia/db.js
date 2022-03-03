@@ -483,9 +483,9 @@ class db {
     }
 }
 class Model extends Data {
-    constructor(props, name, validation) {
-        super(props, name, validation)
-        if (typeof validation === 'function') props = validation(props)
+    constructor(props, name, validator) {
+        super(props, name, validator)
+        if (typeof validator === 'function') props = validator(props)
         if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
         this._m = name
     }
@@ -493,8 +493,8 @@ class Model extends Data {
 function construct(model, data) {
     return model(data)
 }
-const buildModel = (name, validation) => data => construct(data => {
-    return new Model(data, name, validation)
+const buildModel = (name, validator) => data => construct(data => {
+    return new Model(data, name, validator)
 }, data)
 function makeModel(database, name, validator) {
     class ModelClass {
