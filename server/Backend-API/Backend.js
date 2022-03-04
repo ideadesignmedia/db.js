@@ -13,11 +13,9 @@ class DatabaseConnection {
         this.que = []
     }
     send(type, data, callback) {
-        if (callback) {
-            let _id = `${new Date().getTime()}${Math.floor(Math.random() * 1000)}`
-            this.que.push({ type, data, _id, callback })
-        }
-        this.app.sendData(JSON.stringify({ type, data }))
+        let _id = callback ? `${new Date().getTime()}${Math.floor(Math.random() * 1000)}` : null
+        if (callback) this.que.push({ type, data, _id, callback })
+        this.app.sendData({ type, data, _id })
     }
     handle = (type, data) => {
         return new Promise((res, rej) => {
@@ -60,22 +58,22 @@ class DatabaseConnection {
             this.handle('deleteMany', query).then(r => res(r)).catch(e => rej(e))
         })
     }
-    waitForSocketConnection = (socket, callback, data, timer = 1000) => {
+    waitForSocketConnection = (socket, callback, data, timer = 1000, rounds = 0) => {
         clearTimeout((this.socketWait))
-        if (!callback || typeof callback !== 'function') return
+        if (!callback || typeof callback !== 'function' || rounds > 10) return
         if (socket.readyState === 0) {
-            this.socketWait = setTimeout(() => { this.waitForSocketConnection(socket, callback, data, timer) }, timer)
+            setTimeout(() => { this.waitForSocketConnection(socket, callback, data, timer, rounds) }, timer * rounds)
         } else if (socket.readyState === 1) {
             callback(data)
         } else {
-            this.socketWait = this.waitForSocketConnection(socket, callback, data, timer)
+            this.waitForSocketConnection(socket, callback, data, timer, rounds)
         }
     }
     waitForAuth = (socket, callback, data, timer = 1000, rounds = 0) => {
         clearTimeout((this.socketWaitForAuth))
         if (!callback || typeof callback !== 'function' || rounds > 10) return
         if (!this.authenticated) {
-            this.socketWaitForAuth = setTimeout(() => { this.waitForAuth(socket, callback, data, timer) }, timer, rounds + 1)
+            setTimeout(() => { this.waitForAuth(socket, callback, data, timer) }, timer, rounds + 1)
         } else {
             callback(data)
         }
@@ -88,17 +86,16 @@ class DatabaseConnection {
         })
         server.sendData = data => {
             if (!this.authenticated && data.type !== 'auth') {
-                this.waitForAuth(this.ws, data => { this.ws.send(JSON.stringify(data)) }, data)
-            } else if (this.ws.readyState !== 1) {
-                this.waitForSocketConnection(this.ws, data => { this.ws.send(JSON.stringify(data)) }, data)
+                this.waitForAuth(this.app, data => { this.app.send(JSON.stringify(data)) }, data)
+            } else if (this.app.readyState !== 1) {
+                this.waitForSocketConnection(this.app, data => { this.app.send(JSON.stringify(data)) }, data)
             } else {
-                this.ws.send(JSON.stringify(data))
+                this.app.send(JSON.stringify(data))
             }
         }
         server.on('error', (e) => {
             if (!/Unexpected server response/.test(e)) {
                 console.log(e)
-                this.error(e)
                 this.attempts++
                 clearTimeout(this.attempter)
                 this.attempter = setTimeout(() => {
@@ -106,9 +103,9 @@ class DatabaseConnection {
                 }, this.attempts * 1000 * 10)
             }
         })
-        this.waitForAuth(server, () => this.sendPing())
-        this.waitForSocketConnection(server, (data) => server.send(data), JSON.stringify({ type: 'auth', data: {auth: this.auth} }), 2)
         server.on('open', () => {
+            this.waitForAuth(server, () => this.sendPing())
+            this.waitForSocketConnection(server, (data) => server.send(data), JSON.stringify({ type: 'auth', data: { auth: this.auth } }), 10)
             this.pingcheck = setInterval(() => this.sendPing(), 10000)
         })
         server.on('close', (e) => {
@@ -158,7 +155,9 @@ class DatabaseConnection {
                         auth[this.username] = this.password
                         server.send(JSON.stringify({ type: 'auth', data: auth }))
                         this.server = false
+                        this.authenticated = false
                     } else {
+                        this.authenticated = true
                         this.server = true
                     }
                     break
@@ -190,19 +189,47 @@ class Data {
         }
     }
 }
+const isPromise = (p) => {
+    if (typeof p === 'object' && typeof p.then === 'function') {
+        return true;
+    }
+
+    return false;
+}
+const returnsPromise = (f) => {
+    if (
+        f.constructor.name === 'AsyncFunction' ||
+        (typeof f === 'function' && isPromise(f()))
+    ) {
+        return true;
+    }
+
+    return false;
+}
 class Model extends Data {
-    constructor(props, name, validation) {
-        super(props, name, validation)
-        if (typeof validation === 'function') props = validation(props)
-        if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
+    constructor(props, name, validator) {
+        super(props, name, validator)
+        if (typeof validator === 'function') {
+            if (returnsPromise(validator)) {
+                throw new Error('Model validator must be synchronous.')
+            } else {
+                props = validator(props)
+                if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
+            }
+        }
         this._m = name
     }
 }
 function construct(model, data) {
     return model(data)
 }
-const buildModel = (name, validation) => data => construct(data => {
-    return new Model(data, name, validation)
+const buildModel = (name, validator) => data => construct(data => {
+    if (returnsPromise(validator)) return new Promise(async (res) => {
+        let d = await validator(data)
+        let model = new Model(d || data, name)
+        return res(model)
+    })
+    return new Model(data, name, validator)
 }, data)
 function makeModel(database, name, validator) {
     class ModelClass {
@@ -221,7 +248,13 @@ function makeModel(database, name, validator) {
         }
         save(data) {
             return new Promise((res, rej) => {
-                this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
+                if (!data && isPromise(this._doc)) {
+                    this._doc.then(data => {
+                        this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
+                    })
+                } else {
+                    this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
+                }
             })
         }
         find(query) {

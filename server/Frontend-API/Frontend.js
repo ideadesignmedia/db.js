@@ -206,19 +206,47 @@ class Data {
       }
   }
 }
+const isPromise = (p) => {
+  if (typeof p === 'object' && typeof p.then === 'function') {
+    return true;
+  }
+
+  return false;
+}
+const returnsPromise = (f) => {
+  if (
+    f.constructor.name === 'AsyncFunction' ||
+    (typeof f === 'function' && isPromise(f()))
+  ) {
+    return true;
+  }
+
+  return false;
+}
 class Model extends Data {
-  constructor(props, name, validation) {
-      super(props, name, validation)
-      if (typeof validation === 'function') props = validation(props)
-      if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
+  constructor(props, name, validator) {
+      super(props, name, validator)
+      if (typeof validator === 'function') {
+        if (returnsPromise(validator)) {
+          throw new Error('Model validator must be synchronous.')
+        } else {
+          props = validator(props)
+          if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
+        }
+      }
       this._m = name
   }
 }
 function construct(model, data) {
   return model(data)
 }
-const buildModel = (name, validation) => data => construct(data => {
-  return new Model(data, name, validation)
+const buildModel = (name, validator) => data => construct(data => {
+  if (returnsPromise(validator)) return new Promise(async (res) => {
+    let d = await validator(data)
+    let model = new Model(d || data, name)
+    return res(model)
+  })
+  return new Model(data, name, validator)
 }, data)
 function makeModel(database, name, validator) {
   class ModelClass {
@@ -236,10 +264,16 @@ function makeModel(database, name, validator) {
           })
       }
       save(data) {
-          return new Promise((res, rej) => {
-              this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
-          })
-      }
+        return new Promise((res, rej) => {
+            if (!data && isPromise(this._doc)) {
+                this._doc.then(data => {
+                    this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
+                })
+            } else {
+                this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
+            }
+        })
+    }
       find(query) {
           return new Promise((res, rej) => {
               this.send('find', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))

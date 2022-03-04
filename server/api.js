@@ -1,7 +1,7 @@
 const fs = require('fs')
 let config = JSON.parse(fs.readFileSync('./config.json'))
 if (typeof config === 'object' && config.length > 0) for (let i = 0; i < config.length; i++) if (config[i] && config[i].key && config[i].value) process.env[config[i].key] = config[i].value
-const DB = require('../db')
+const DB = require('./db')
 global.db = new DB.db()
 const { db } = global
 const ws = require('ws')
@@ -70,7 +70,7 @@ wss.on('connection', function connection(ws, req) {
                     })
                     break
                 }
-                case 'save': {                    
+                case 'save': {                 
                     db.save(data ? new DB.Data(data) : null).then(result => {
                         ws.reply({type: 'response', _id, data: result})
                     }).catch(e => {
@@ -78,7 +78,7 @@ wss.on('connection', function connection(ws, req) {
                     })
                     break
                 }
-                case 'delete': {                    
+                case 'delete': {                  
                     db.delete(data).then(result => {
                         ws.reply({type: 'response', _id, data: result})
                     }).catch(e => {
@@ -111,8 +111,8 @@ wss.on('connection', function connection(ws, req) {
                 }
             }
         } else {
-            console.log('Failed to send', data)
-            ws.reply({ error: true, message: `Failed to send: ${data}` })
+            console.log('Failed to send', that)
+            ws.reply({ error: true, message: `Failed to send: ${that}` })
         }
     })
 })
