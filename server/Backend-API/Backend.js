@@ -1,6 +1,5 @@
 const ws = require('ws')
-//TODO: ADD THE WAIT FOR CONNECTION LOGIC TO PREVENT SEND BEFORE OPEN ERROR
-class DatabaseConnection {
+class db {
     constructor(ws, auth) {
         if (!ws) throw new Error('Missing websocket address')
         this.ws = ws
@@ -189,23 +188,8 @@ class Data {
         }
     }
 }
-const isPromise = (p) => {
-    if (typeof p === 'object' && typeof p.then === 'function') {
-        return true;
-    }
-
-    return false;
-}
-const returnsPromise = (f) => {
-    if (
-        f.constructor.name === 'AsyncFunction' ||
-        (typeof f === 'function' && isPromise(f()))
-    ) {
-        return true;
-    }
-
-    return false;
-}
+const isPromise = (p) => typeof p === 'object' && typeof p.then === 'function'
+const returnsPromise = (f) => f.constructor.name === 'AsyncFunction' || m(typeof f === 'function' && isPromise(f()))
 class Model extends Data {
     constructor(props, name, validator) {
         super(props, name, validator)
@@ -220,17 +204,12 @@ class Model extends Data {
         this._m = name
     }
 }
-function construct(model, data) {
-    return model(data)
-}
-const buildModel = (name, validator) => data => construct(data => {
-    if (returnsPromise(validator)) return new Promise(async (res) => {
-        let d = await validator(data)
-        let model = new Model(d || data, name)
-        return res(model)
-    })
-    return new Model(data, name, validator)
-}, data)
+const construct = (model, data) => model(data)
+const buildModel = (name, validator) => data => construct(data => returnsPromise(validator) ? new Promise(async (res) => {
+    let d = await validator(data)
+    let model = new Model(d || data, name)
+    return res(model)
+  }) : new Model(data, name, validator), data)
 function makeModel(database, name, validator) {
     class ModelClass {
         constructor(data) {
@@ -291,4 +270,4 @@ const makeModels = (database, models) => {
         return a
     }, {})
 }
-module.exports = { makeModels, makeModel, DatabaseConnection, Data, Model }
+module.exports = { makeModels, makeModel, db, Data, Model }

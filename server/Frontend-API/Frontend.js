@@ -192,120 +192,100 @@ class db {
 }
 class Data {
   constructor(props) {
-      let t = new Date()
-      this._id = `${t.getFullYear()}${Math.round(Math.random() * 10000)}${t.getUTCDay().toString()}${t.getUTCHours().toString()}${t.getUTCMinutes().toString()}${t.getUTCMilliseconds()}`
-      if (props && typeof props === 'object') {
-          Object.entries(props).forEach(([key, value]) => {
-              this[key] = value
-          })
-      }
-      if (!this._t) {
-          this._t = t
-      } else {
-          this._u = t
-      }
+    let t = new Date()
+    this._id = `${t.getFullYear()}${Math.round(Math.random() * 10000)}${t.getUTCDay().toString()}${t.getUTCHours().toString()}${t.getUTCMinutes().toString()}${t.getUTCMilliseconds()}`
+    if (props && typeof props === 'object') {
+      Object.entries(props).forEach(([key, value]) => {
+        this[key] = value
+      })
+    }
+    if (!this._t) {
+      this._t = t
+    } else {
+      this._u = t
+    }
   }
 }
-const isPromise = (p) => {
-  if (typeof p === 'object' && typeof p.then === 'function') {
-    return true;
-  }
-
-  return false;
-}
-const returnsPromise = (f) => {
-  if (
-    f.constructor.name === 'AsyncFunction' ||
-    (typeof f === 'function' && isPromise(f()))
-  ) {
-    return true;
-  }
-
-  return false;
-}
+const isPromise = (p) => typeof p === 'object' && typeof p.then === 'function'
+const returnsPromise = (f) => f.constructor.name === 'AsyncFunction' || m(typeof f === 'function' && isPromise(f()))
 class Model extends Data {
   constructor(props, name, validator) {
-      super(props, name, validator)
-      if (typeof validator === 'function') {
-        if (returnsPromise(validator)) {
-          throw new Error('Model validator must be synchronous.')
-        } else {
-          props = validator(props)
-          if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
-        }
+    super(props, name, validator)
+    if (typeof validator === 'function') {
+      if (returnsPromise(validator)) {
+        throw new Error('Model validator must be synchronous.')
+      } else {
+        props = validator(props)
+        if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
       }
-      this._m = name
+    }
+    this._m = name
   }
 }
-function construct(model, data) {
-  return model(data)
-}
-const buildModel = (name, validator) => data => construct(data => {
-  if (returnsPromise(validator)) return new Promise(async (res) => {
-    let d = await validator(data)
-    let model = new Model(d || data, name)
-    return res(model)
-  })
-  return new Model(data, name, validator)
-}, data)
-function makeModel(database, name, validator) {
+const construct = (model, data) => model(data)
+const buildModel = (name, validator) => data => construct(data => returnsPromise(validator) ? new Promise(async (res) => {
+  let d = await validator(data)
+  let model = new Model(d || data, name)
+  return res(model)
+}) : new Model(data, name, validator), data)
+const makeModel = (database, name, validator) => {
   class ModelClass {
-      constructor(data) {
-          this.name = name
-          this.validator = validator
-          this.model = buildModel(this.name, this.validator)
-          if (data) this._doc = this.model(data)
-      }
-      send(type, data) {
-          return new Promise((res, rej) => {
-              database.handle(type, data).then(result => {
-                  res(result)
-              }).catch(e => rej(e))
-          })
-      }
-      save(data) {
-        return new Promise((res, rej) => {
-            if (!data && isPromise(this._doc)) {
-                this._doc.then(data => {
-                    this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
-                })
-            } else {
-                this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
-            }
-        })
+    constructor(data) {
+      this.name = name
+      this.validator = validator
+      this.model = buildModel(this.name, this.validator)
+      if (data) this._doc = this.model(data)
     }
-      find(query) {
-          return new Promise((res, rej) => {
-              this.send('find', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+    send(type, data) {
+      return new Promise((res, rej) => {
+        database.handle(type, data).then(result => {
+          res(result)
+        }).catch(e => rej(e))
+      })
+    }
+    save(data) {
+      return new Promise((res, rej) => {
+        if (!data && isPromise(this._doc)) {
+          this._doc.then(data => {
+            this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
           })
-      }
-      findAll(query) {
-          return new Promise((res, rej) => {
-              this.send('findAll', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
-          })
-      }
-      delete(_id) {
-          return new Promise((res, rej) => {
-              this.send('delete', { _id }).then(r => res(r)).catch(e => rej(e))
-          })
-      }
-      deleteOne(query) {
-          return new Promise((res, rej) => {
-              this.send('deleteOne', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
-          })
-      }
-      deleteMany(query) {
-          return new Promise((res, rej) => {
-              this.send('deleteMany', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
-          })
-      }
+        } else {
+          this.send('save', data ? { ...data, _m: this.name } : this._doc).then(r => res(r)).catch(e => rej(e))
+        }
+      })
+    }
+    find(query) {
+      return new Promise((res, rej) => {
+        this.send('find', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+      })
+    }
+    findAll(query) {
+      return new Promise((res, rej) => {
+        this.send('findAll', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+      })
+    }
+    delete(_id) {
+      return new Promise((res, rej) => {
+        this.send('delete', { _id }).then(r => res(r)).catch(e => rej(e))
+      })
+    }
+    deleteOne(query) {
+      return new Promise((res, rej) => {
+        this.send('deleteOne', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+      })
+    }
+    deleteMany(query) {
+      return new Promise((res, rej) => {
+        this.send('deleteMany', { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
+      })
+    }
   }
   return ModelClass
 }
 const makeModels = (database, models) => {
   return models.map(u => ({ name: u.name, model: makeModel(database, u.name, u.validator) })).reduce((a, b) => {
-      a[b.name] = b.model
-      return a
+    a[b.name] = b.model
+    return a
   }, {})
 }
 /*Only can export from module*/

@@ -490,13 +490,9 @@ class Model extends Data {
         this._m = name
     }
 }
-function construct(model, data) {
-    return model(data)
-}
-const buildModel = (name, validator) => data => construct(data => {
-    return new Model(data, name, validator)
-}, data)
-function makeModel(database, name, validator) {
+const construct = (model, data) => model(data)
+const buildModel = (name, validator) => data => construct(data => new Model(data, name, validator), data)
+const makeModel = (database, name, validator) => {
     class ModelClass {
         constructor(data) {
             this.name = name
