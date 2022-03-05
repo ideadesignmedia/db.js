@@ -189,7 +189,7 @@ class Data {
     }
 }
 const isPromise = (p) => typeof p === 'object' && typeof p.then === 'function'
-const returnsPromise = (f) => f.constructor.name === 'AsyncFunction' || m(typeof f === 'function' && isPromise(f()))
+const returnsPromise = (f) => f.constructor.name === 'AsyncFunction' || (typeof f === 'function' && typeof f === 'object' && typeof f.then === 'function')
 class Model extends Data {
     constructor(props, name, validator) {
         super(props, name, validator)
