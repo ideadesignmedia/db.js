@@ -213,22 +213,49 @@ const database = new db('Main')
 const modelTemplates = [
     {
         name: 'user',
-        validator: function (data) {
+        validator: async function (data) {
             if (!data.email) throw new Error('Missing email')
+            let user = await db.find({email: data.email, _m: 'user'}).catch(e => console.log(e))
+            if (user) throw new Error('User already exists')
+            if (!user.type) user.type = 'web'
+            return user
         }
     },
     {
         name: 'payment',
-        validator: function (data) {
+        validator: async function (data) {
             if (!data.amount) throw new Error('Missing amount')
             if (data.amount < 0) throw new Error('Payments should have positive amounts')
             if (!data.user) throw new Error('Missing user that payment is associated with')
+            let user = await db.find({_id: data.user}).catch(e => console.log(e))
+            if (!user) throw new Error('User does not exist')
         }
     }
 ]
 const models = createModels(database, modelTemplates) // {user: [Class], payment: [Class]}
 // You can now destructure into individual models or access them as models.user etc.
 const { payment, user } = models
+
+Wrap Model constructors in a try catch to prevent throwing unhandled exceptions from validator functions.
+
+Example:
+let user
+try {
+    user = new User(data)
+} catch(e) {
+    //Handle error from validator.
+}
+
+
+Wrap in the construct function to return the new model as a promise
+
+Example:
+const {construct} = require('./db')
+construct(Model, data).save().then(result => {
+    console.log(result)
+}).catch(e => {
+    //Handle error from validator.
+})
 
 MANAGEMENT METHODS
 -----------

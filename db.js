@@ -482,16 +482,25 @@ class db {
         })
     }
 }
+const isPromise = (p) => typeof p === 'object' && typeof p.then === 'function'
+const returnsPromise = (f) => f.constructor.name === 'AsyncFunction' || m(typeof f === 'function' && isPromise(f()))
 class Model extends Data {
     constructor(props, name, validator) {
         super(props, name, validator)
-        if (typeof validator === 'function') props = validator(props)
-        if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
+        if (typeof validator === 'function') {
+            if (returnsPromise(validator)) throw new Error('Validator must be synchronous.')
+            props = validator(props)
+            if (props && typeof props === 'object') Object.entries(props).forEach(([key, value]) => this[key] = value)
+        }
         this._m = name
     }
 }
-const construct = (model, data) => model(data)
-const buildModel = (name, validator) => data => construct(data => new Model(data, name, validator), data)
+const constructModel = (model, data) => model(data)
+const buildModel = (name, validator) => data => constructModel(data => returnsPromise(validator) ? new Promise(async (res) => {
+    let d = await validator(data)
+    let model = new Model(d || data, name)
+    return res(model)
+}) : new Model(data, name, validator), data)
 const makeModel = (database, name, validator) => {
     class ModelClass {
         constructor(data) {
@@ -502,9 +511,17 @@ const makeModel = (database, name, validator) => {
         }
         save(data) {
             return new Promise((res, rej) => {
-                database.save(data ? { ...data, _m: this.name } : this._doc).then(r => {
-                    return res(r)
-                }).catch(e => rej(e))
+                if (!data && isPromise(this._doc)) {
+                    this._doc.then(data => {
+                        database.save(data ? { ...data, _m: this.name } : this._doc).then(r => {
+                            return res(r)
+                        }).catch(e => rej(e))
+                    })
+                } else {
+                    database.save(data ? { ...data, _m: this.name } : this._doc).then(r => {
+                        return res(r)
+                    }).catch(e => rej(e))
+                }
             })
         }
         find(query) {
@@ -541,10 +558,25 @@ const makeModels = (database, models) => {
         return a
     }, {})
 }
+const construct = (model, data) => {
+    return new Promise(async (res, rej) => {
+        try {
+            let d = new model(data)
+            if (isPromise(d._doc)) {
+                d._doc.then(() => res(d))
+            } else {
+                res(d)
+            }
+        } catch (e) {
+            rej(e)
+        }
+    })
+}
 module.exports = {
     Data,
     Model,
     makeModels,
     makeModel,
+    construct,
     db
 }

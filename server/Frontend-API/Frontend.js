@@ -222,8 +222,8 @@ class Model extends Data {
     this._m = name
   }
 }
-const construct = (model, data) => model(data)
-const buildModel = (name, validator) => data => construct(data => returnsPromise(validator) ? new Promise(async (res) => {
+const constructModel = (model, data) => model(data)
+const buildModel = (name, validator) => data => constructModel(data => returnsPromise(validator) ? new Promise(async (res) => {
   let d = await validator(data)
   let model = new Model(d || data, name)
   return res(model)
@@ -288,11 +288,26 @@ const makeModels = (database, models) => {
     return a
   }, {})
 }
+const construct = (model, data) => {
+  return new Promise(async (res, rej) => {
+      try {
+          let d = new model(data)
+          if (isPromise(d._doc)) {
+              d._doc.then(() => res(d))
+          } else {
+              res(d)
+          }
+      } catch (e) {
+          rej(e)
+      }
+  })
+}
 /*Only can export from module*/
 //module.exports = {
 //   db,
 //   Data,
 //   Model,
 //   makeModel,
-//   makeModels
+//   makeModels,
+//   construct
 // }
