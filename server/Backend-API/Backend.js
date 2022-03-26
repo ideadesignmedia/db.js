@@ -379,6 +379,7 @@ class db {
             this.pingcheck = setInterval(() => this.sendPing(), 10000)
         })
         server.on('close', (e) => {
+            console.log('Database Connection Closed, Authorized: false')
             this.server = false
             clearTimeout(this.attempter)
             this.attempter = setTimeout(() => {
@@ -416,6 +417,7 @@ class db {
                         this.sendPing()
                     } else {
                         this.currentPing = new Date().getTime() - this.lastPingTime
+                        console.log(`Database Current Ping: ${this.currentPing}ms, Authorized: ${this.server}`)
                     }
                     break
                 }
@@ -429,6 +431,7 @@ class db {
                     } else {
                         this.authenticated = true
                         this.server = true
+                        console.log('Database connected with auth')
                     }
                     break
                 }

@@ -588,11 +588,31 @@ class db {
             })
         })
     }
-    pushData = d => {
+    push = d => {
         return new Promise((res, rej) => {
             if (!d || typeof d !== 'object' || !d instanceof Data) return rej('NOT OBJECT')
-            this.data.push(d)
-            return res(true)
+            if (d && typeof d === 'object' && d instanceof Data) {
+                let a = false
+                for (let i = 0; i < this.data.length; i++) if (this.data[i]._id === d._id) {
+                    this.data[i] = d
+                    a = true
+                    i = Infinity
+                }
+                if (!a) this.data.unshift(d)
+            } else if (d && typeof d === 'object' && d instanceof Array) {
+                for (let z = 0; z < d.length; z++) {
+                    if (d[z] && typeof d[z] === 'object' && d[z] instanceof Data) {
+                        let a = false
+                        for (let i = 0; i < this.data.length; i++) if (this.data[i]._id === d[z]._id) {
+                            this.data[i] = d[z]
+                            a = true
+                            i = Infinity
+                        }
+                        if (!a) this.data.unshift(d[z])
+                    }
+                }
+            }
+            return res(d)
         })
     }
     delete = id => {

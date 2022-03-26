@@ -71,15 +71,19 @@ wss.on('connection', function connection(ws, req) {
                     break
                 }
                 case 'save': {                 
-                    db.save(data ? new DB.Data(data) : null).then(result => {
-                        ws.reply({type: 'response', _id, data: result})
-                    }).catch(e => {
-                        ws.reply({type: 'error', _id, message: e})
-                    })
+                    if (typeof data === 'object') {
+                        db.save(data instanceof Array ? data.map(u => new DB.Data(u)) : new DB.Data(data)).then(result => {
+                            ws.reply({ type: 'response', _id, data: result })
+                        }).catch(e => {
+                            ws.reply({ type: 'error', _id, message: e })
+                        })
+                    } else {
+                        ws.reply({ type: 'error', _id, message: 'Invalid object' })
+                    }
                     break
                 }
                 case 'delete': {                  
-                    db.delete(data).then(result => {
+                    db.delete(data && data._id ? data._id : data).then(result => {
                         ws.reply({type: 'response', _id, data: result})
                     }).catch(e => {
                         ws.reply({type: 'error', _id, message: e})
