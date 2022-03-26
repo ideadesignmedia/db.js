@@ -1,6 +1,6 @@
 {
   "name": "@ideadesignmedia/db.js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "db.js",
   "repository": "https://github.com/ideadesignmedia/db.js.git",
   "author": "ideadesignmedia <samwagnermedia@gmail.com>",
