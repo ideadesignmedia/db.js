@@ -291,15 +291,18 @@ class Data {
     }
 }
 class db {
-    constructor(db, key, buffer, algorithm) {
+    constructor(db, key, buffer) {
         this.db = db
-        this.algorithm = algorithm || 'aes-256-ctr';
-        if (key) { this.encrypted = true; this.key = key }
-        if (buffer) {
-            if (buffer instanceof Buffer) {
+        this.algorithm = 'aes-256-ctr';
+        if (key) {
+            this.encrypted = true;
+            if (key.length !== 32) throw new Error('Invalid key length, must be 32')
+            this.key = key;
+            if (buffer) {
+                if (buffer.length !== 16) throw new Error('Invalid buffer length must be 16')
                 this.buffer = buffer
             } else {
-                this.buffer = Buffer.from('61bd456b9bb5548495246dee991a6baa', 'hex')
+                this.buffer = '1234567891011121'
             }
         }
         this.init(this.db)
@@ -546,7 +549,7 @@ class db {
                         } else {
                             let temp = path.resolve(path.join(DBPATH, (this.db || '') + 'temp.json'))
                             let final = this.DB || DBDEFAULT
-                            fs.writeFileSync(temp, this.ecrypted ? this.encrypt(JSON.stringify(this.data)) : JSON.stringify(this.data))
+                            fs.writeFileSync(temp, this.encrypted ? this.encrypt(JSON.stringify(this.data)) : JSON.stringify(this.data))
                             fs.renameSync(temp, final)
                         }
                     } catch (e) {
@@ -822,7 +825,7 @@ const makeModel = (database, name, validator) => {
                 database.find(typeof query === 'function' ? query : { ...query, _m: this.name }).then(r => res(r)).catch(e => rej(e))
             })
         }
-        findAll(query, options) {
+        findAll(query, options = {}) {
             return new Promise((res, rej) => {
                 database.findAll(typeof query === 'function' ? query : { ...query, _m: this.name }).then(r => {
                     if (typeof options.filter === 'object') r = this.filter(r, options.filter instanceof Array ? options.filter : [options.filter])
