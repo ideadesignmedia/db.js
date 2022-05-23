@@ -7,6 +7,10 @@ Connect to the websocket server using either the frontend or the backend APIs.
 Set your server to use encryption each time data is stored on the disk.
 Configure to store large javascript objects such as historical stock data.
 
+## INSTALLATION
+----------------
+`npm install @ideadesignmedia/db.js` or `yarn add @ideadesignmedia/db.js`
+
 ## BASIC USAGE
 ----------------
 ### Creating/Loading a database
@@ -14,7 +18,7 @@ Configure to store large javascript objects such as historical stock data.
 
 Example:
 ```
-const { db } = require('db.js')
+const { db } = require('@ideadesignmedia/db.js')
 const database = new db('Main')
 ```
 
@@ -23,7 +27,7 @@ The Buffer is optional. If included, the Buffer must be 16 characters.
 
 Example:
 ```
-const { db } = require('db.js')
+const { db } = require('@ideadesignmedia/db.js')
 const database = new db('Main', process.env.DBKEY, process.env.DBBUFFER)
 ```
 
@@ -47,7 +51,7 @@ You can save a document to the database
 
 Example:
 ```
-const { Data } = require('db.js')
+const { Data } = require('@ideadesignmedia/db.js')
 let readyData = new Data({ name: 'Sam', color: 'blue' })
 database.save(readyData).then(result => {
     console.log(result) // {_id: 'new_id', name: 'Sam', color: 'blue'}
@@ -145,7 +149,7 @@ Like the Data class the first argument for the constructor is the data to be cre
 
 Example:
 ```
-const { Model } = require('./db')
+const { Model } = require('@ideadesignmedia/db.js')
 function userValidation(data) {
     if (!data) throw new Error('Missing data')
     if (!data.email) throw new Error('Missing Email')
@@ -163,7 +167,7 @@ To better interact with the Model class you can create another class that wraps 
 
 Example:
 ```
-const { db, createModel } = require('db.js')
+const { db, createModel } = require('@ideadesignmedia/db.js')
 const database = new db('Main')
 function userValidation(data) {
     if (!data) throw new Error('Missing data')
@@ -240,7 +244,7 @@ Users.deleteMany({}).then(r => {
 **NOTE: the template name determines object key case.**
 Example:
 ```
-const { db, createModels } = require('db.js')
+const { db, createModels } = require('@ideadesignmedia/db.js')
 const database = new db('Main')
 const modelTemplates = [
     {
@@ -283,7 +287,7 @@ try {
 Wrap in the construct function to return the new model as a promise
 Example:
 ```
-const {construct} = require('./db')
+const {construct} = require('@ideadesignmedia/db.js')
 construct(Model, data).save().then(result => {
     console.log(result)
 }).catch(e => {
