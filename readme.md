@@ -2,8 +2,6 @@
 ## ABOUT
 -----------
 db.js is a flexible and powerful cache-level database build with NodeJS.
-Utilize in a single server setup or as a websocket server to connect from multiple clients.
-Connect to the websocket server using either the frontend or the backend APIs.
 Set your server to use encryption each time data is stored on the disk.
 Configure to store large javascript objects such as historical stock data.
 
