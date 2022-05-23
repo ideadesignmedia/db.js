@@ -38,16 +38,13 @@ The database name will set the save file for that data.
 -----------
 db.js stores documents using it's Data class which automatically generates a unique _id for the entry.
 
-`save(null || data || items)` - Each time the save function is called it saves the current database state to the local disk.
-
+#### `save(null || data || items)`
+Each time the save function is called it saves the current database state to the local disk.
 Example:
 ```
 database.save().catch(e => console.log(e)) // Saves the current database to the local disk.
 ```
-
-You can save a document to the database
-
-Example:
+**Save a document to the database:**
 ```
 const { Data } = require('@ideadesignmedia/db.js')
 let readyData = new Data({ name: 'Sam', color: 'blue' })
@@ -55,10 +52,7 @@ database.save(readyData).then(result => {
     console.log(result) // {_id: 'new_id', name: 'Sam', color: 'blue'}
 })
 ```
-
-You can also save an array of items to the database
-
-Example:
+**Save an array of items to the database:**
 ```
 let users = [{ name: 'Sam' }, { name: 'Lucy' }, { name: 'Jim' }]
 database.save(users.map(u => new Data(u))).then(r => {
@@ -66,10 +60,8 @@ database.save(users.map(u => new Data(u))).then(r => {
 })
 ```
 
-In order to avoid long creation times, consider using the push method for items which needn't persist between instances.
-Usually you would just use the save function to acheive this.
-
-Example:
+#### `push(Data)`
+**In order to avoid long creation times, consider using the push method for items which needn't be added to the disk immediately:**
 ```
 let data = [{ name: 'Sam' }, { name: 'Ed' }, { name: 'Galen' }]
 for (let i = 0; i < data.length; i++) {
@@ -87,7 +79,8 @@ To retreive your documents you will use queries structured one of three ways:
 2. Use a function to return the results you wish to retrieve - `(data) => data.name === 'Sam'`
 3. Describe an object with functions to validate the data - `{name: (name) => name === 'Sam'}`
 
-#### `find(query)` - Returns the first document that matches the query
+#### `find(query)`
+Returns the first document that matches the query
 
 Example:
 ```
@@ -103,14 +96,13 @@ database.find(a => a.name === 'Sam').then(result => {
 })
 ```
 
-#### `findAll(query)` - Return all documents that match query
-Example:
+#### `findAll(query)`
+**Return all documents that match query:**
 ```
 database.findAll({ name: 'Sam' }).then(result => {
     console.log(result) // returns all objects that have the name: 'Sam'
 })
 ```
-
 Example:
 ```
 database.findAll(a => a.name === 'Sam').then(result => {
@@ -122,7 +114,8 @@ database.findAll(a => a.name === 'Sam').then(result => {
 -----------
 Use the delete and deleteMany methods to delete documents from the database
 
-#### `delete(_id)` - takes in the _id of the document to be deleted
+#### `delete(_id)`
+Takes in the _id of the document to be deleted.
 
 Example:
 ```
@@ -131,7 +124,8 @@ database.delete('new_id').then(result => {
 })
 ```
 
-#### `deleteMany(query)` - takes in a query object/function to determine which documents to be deleted
+#### `deleteMany(query)`
+Takes in a query object/function to determine which documents to be deleted
 
 Example:
 ```
@@ -142,7 +136,8 @@ database.deleteMany(data => data.name === 'Sam').then(result => {
 
 ### Modeling data
 -----------
-#### `Model(data, name, validation)` - The Model class extends the Data class by adding a unique model name to the document and offers data validation.
+#### `Model(data, name, validation)`
+The Model class extends the Data class by adding a unique model name to the document and offers data validation.
 Like the Data class the first argument for the constructor is the data to be created. The second argument is the name of the model. The third argmuent is the validation function for the model's data, taking in the data and throwing an Error if the validation fails.
 
 Example:
@@ -159,9 +154,10 @@ user = new Model({ name: 'Sam' }, 'User', userValidation)
 console.log(user)
 ```
 
-To better interact with the Model class you can create another class that wraps around the Model offering increased functionality by passing in the database instance, name, and validator.
+**To better interact with the Model class you can create another class that wraps around the Model offering increased functionality by passing in the database instance, name, and validator.**
 
-#### `createModel(database, name, validator)` - creates a new class that extends the model class that will help template and validate modeled data.
+#### `createModel(database, name, validator)`
+Creates a new class that extends the model class that will help template and validate modeled data.
 
 Example:
 ```
@@ -209,29 +205,25 @@ Users.findAll().then(result => {
 ```
 
 We can use the ModelClass to delete a user by _id, by query, or all users
-
-Delete a user with the _id 'new_id':
+**Delete a user with the _id 'new_id':**
 ```
 Users.delete('new_id').then(r => {
     console.log(r) // deleted user || null
 })
 ```
-
-Delete a user with the name 'Sam':
+**Delete a user with the name 'Sam':**
 ```
 Users.deleteOne({ name: 'Sam' }).then(r => {
     console.log(r) // deleted user || null
 })
 ```
-
-Delete all users using the 'user' ModelClass with the name 'Sam':
+**Delete all users using the 'user' ModelClass with the name 'Sam':**
 ```
 Users.deleteMany({ name: 'Sam' }).then(r => {
     console.log(r) // deleted users || []
 })
 ```
-
-Delete all users using the 'user' ModelClass:
+**Delete all users using the 'user' ModelClass:**
 ```
 Users.deleteMany({}).then(r => {
     console.log(r) // deleted users || []
@@ -240,6 +232,7 @@ Users.deleteMany({}).then(r => {
 
 #### `createModels(database, models)` - get an object with unique ModelClasses from a array of templates.
 **NOTE: the template name determines object key case.**
+
 Example:
 ```
 const { db, createModels } = require('@ideadesignmedia/db.js')
@@ -271,8 +264,7 @@ const models = createModels(database, modelTemplates) // {user: [Class], payment
 const { payment, user } = models
 ```
 
-Wrap Model constructors in a try catch to prevent throwing unhandled exceptions from validator functions.
-Example:
+**NOTE: Wrap Model constructors in a try catch to prevent throwing unhandled exceptions from validator functions:**
 ```
 let user
 try {
@@ -282,8 +274,7 @@ try {
 }
 ```
 
-Wrap in the construct function to return the new model as a promise
-Example:
+**Wrap in the construct function to return the new model as a promise:**
 ```
 const {construct} = require('@ideadesignmedia/db.js')
 construct(Model, data).save().then(result => {
