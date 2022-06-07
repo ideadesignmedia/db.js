@@ -205,6 +205,7 @@ Users.findAll().then(result => {
 ```
 
 We can use the ModelClass to delete a user by _id, by query, or all users
+
 **Delete a user with the _id 'new_id':**
 ```
 Users.delete('new_id').then(r => {
@@ -213,7 +214,7 @@ Users.delete('new_id').then(r => {
 ```
 **Delete a user with the name 'Sam':**
 ```
-Users.deleteOne({ name: 'Sam' }).then(r => {
+Users.delete({ name: 'Sam' }).then(r => {
     console.log(r) // deleted user || null
 })
 ```
