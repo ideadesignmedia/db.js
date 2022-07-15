@@ -21,20 +21,73 @@ const checkType = (type, value) => {
             return false;
     }
 }
-const validateObjectTypes = (obj, scheme) => {
-    const entries = Object.entries(scheme);
+const validateObjectTypes = (obj, schema) => {
+    const entries = Object.entries(schema);
     const objKeys = Object.keys(obj);
     const objValues = Object.values(obj);
     let isValid = true;
-    let reason = {key: '', value: '', message: ''}
+    let reason = { key: '', value: '', message: '' }
     for (let i = 0; i < objKeys.length; i++) {
-        if (typeof objValues[i] === 'undefined') continue 
+        if (typeof objValues[i] === 'undefined') continue
         if (!isValid) break;
         let entry = entries.find(([key]) => key === objKeys[i]);
         if (entry) {
+            let validateArray = (scheme, value) => {
+                let isValid = true;
+                let reason = { key: '', value: '', message: '' }
+                if (scheme.length < 1) {
+                    throw new Error('Schema array must have at least one type')
+                } else if (!(value instanceof Array)) {
+                    isValid = false
+                    reason.message = 'Value is not an array'
+                    reason.key = objKeys[i]
+                    reason.value = value
+                } else if (value.length < 1) {
+                    return true
+                } else if (scheme.length === 1) {
+                    let type = scheme[0];
+                    if (typeof type === 'object') {
+                        if (type instanceof Array) {
+                            let isSolid = true
+                            for (let i = 0; i < value.length; i++) {
+                                isSolid = validateArray(type, value[i])                                
+                                if (!isSolid || typeof isSolid === 'object') {
+                                    isValid = false
+                                    reason.message = `Value at index ${i} ${JSON.stringify(value[i])} is not a valid array of type ${JSON.stringify(type)}`
+                                    reason.key = objKeys[i]
+                                    reason.value = value
+                                    break
+                                }
+                            }
+                        } else {
+                            let isSolid = true
+                            for (let j = 0; j < value.length; j++) {
+                                isSolid = validateObjectTypes(value, type);
+                                if (!isSolid || typeof isSolid === 'object') {
+                                    isValid = false;
+                                    reason = isSolid;
+                                    break
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    let types = scheme;
+                    for (let j = 0; j < types.length; j++) {
+                        isValid = checkType(types[j], value[z])
+                        if (!isValid) {
+                            reason.message = `Value at index ${z} ${JSON.stringify(value)} is not of types ${types[j]}`
+                            reason.key = objKeys[i]
+                            reason.value = value
+                            break
+                        }
+                    }
+                }
+                return isValid || reason
+            }
             if (typeof entry[1] === 'string') {
                 let isSolid = checkType(entry[1], objValues[i]);
-                if (!isSolid){
+                if (!isSolid) {
                     isValid = false;
                     reason.key = objKeys[i];
                     reason.value = objValues[i];
@@ -46,42 +99,59 @@ const validateObjectTypes = (obj, scheme) => {
                         isValid = false;
                         reason.key = objKeys[i];
                         reason.value = objValues[i];
-                        reason.message = 'Invalid scheme, contains an empty array';
+                        reason.message = 'Invalid schema, contains an empty array';
                     } else if (entry[1].length === 1) {
                         let type = entry[1][0];
-                        let isSolid = true
-                        for (let z = 0; z < objValues[i].length; z++) {
-                            isSolid = checkType(type, objValues[i][z]);
-                            if (!isSolid) break;
-                        }
-                        if (!isSolid) {
-                            isValid = false;
-                            reason.key = objKeys[i];
-                            reason.value = objValues[i];
-                            reason.message = `${objKeys[i]} must be an array of ${type}`;
+                        if (typeof type === 'object') {
+                            if (type instanceof Array) {
+                                //Add validateArray(type, objValue[i])
+                                throw new Error('Cannot nest arrays in schema')
+                            } else {
+                                for (let z = 0; z < objValues[i].length; z++) {
+                                    let isSolid = validateObjectTypes(objValues[i][z], type);
+                                    if (!isSolid || typeof isSolid === 'object') {
+                                        isValid = false;
+                                        reason.key = objKeys[i];
+                                        reason.value = objValues[i][z];
+                                        reason.message = `${objKeys[i]} ${JSON.stringify(objValues[i][z])} is not a ${JSON.stringify(type)}: ${JSON.stringify(isSolid)}`;
+                                    }
+                                    if (!isValid) break;
+                                }
+                            }
+                        } else {
+                            let isSolid = true
+                            for (let z = 0; z < objValues[i].length; z++) {
+                                isSolid = checkType(type, objValues[i][z]);
+                                if (!isSolid) break;
+                            }
+                            if (!isSolid) {
+                                isValid = false;
+                                reason.key = objKeys[i];
+                                reason.value = objValues[i];
+                                reason.message = `${objKeys[i]} must be an array of ${JSON.stringify(type)}`;
+                            }
                         }
                     } else {
-
                         let isSolid = false
                         for (let z = 0; z < entry[1].length; z++) {
                             isSolid = checkType(entry[1][z], objValues[i]);
                             if (isSolid) break;
                         }
                         if (!isSolid) {
-                            reason = {key: objKeys[i], value: objValues[i], message: 'value does not match any available types'}
+                            reason = { key: objKeys[i], value: objValues[i], message: 'value does not match any available types' }
                             isValid = false;
                         }
                     }
                 } else {
                     let isSolid = validateObjectTypes(objValues[i], entry[1]);
-                    if (!isSolid) {
-                        reason = {key: objKeys[i], value: objValues[i], message: 'Invalid object type: '+JSON.stringify(isSolid)}
+                    if (!isSolid || typeof isSolid === 'object') {
+                        reason = { key: objKeys[i], value: objValues[i], message: 'Invalid object type: ' + JSON.stringify(isSolid) }
                         isValid = false;
                     }
                 }
             } else {
                 isValid = false
-                reason = {key: objKeys[i], value: objValues[i], message: 'Invalid scheme: '+typeof entry[1]}
+                reason = { key: objKeys[i], value: objValues[i], message: 'Invalid schema: ' + typeof entry[1] }
             }
         }
     }
@@ -404,7 +474,7 @@ class db {
     init = db => {
         let dbTime = new Date()
         if (db) this.DB = path.resolve(path.join(DBPATH, db))
-        if (!fs.existsSync(DBPATH)) { console.log('no dir'); fs.mkdirSync(DBPATH) }
+        if (!fs.existsSync(DBPATH)) { console.log('CREATING DATABASE DIRECTORY'); fs.mkdirSync(DBPATH) }
         if (!fs.existsSync(this.DB || DBDEFAULT)) {
             fs.writeFileSync(this.DB || DBDEFAULT, this.encrypted ? this.encrypt(JSON.stringify([])) : JSON.stringify([]))
             this.data = []
@@ -863,10 +933,10 @@ class db {
 const isPromise = (p) => typeof p === 'object' && typeof p.then === 'function'
 const returnsPromise = (f) => f && (f.constructor.name === 'AsyncFunction' || f instanceof Promise || (typeof f === 'function' && typeof f === 'object' && typeof f.then === 'function'))
 class Model extends Data {
-    constructor(props, name, validator, scheme) {
-        super(props, name, validator, scheme)
-        if (scheme && typeof scheme === 'object') {
-            let valid = validateObjectTypes(props, scheme)
+    constructor(props, name, validator, schema) {
+        super(props, name, validator, schema)
+        if (schema && typeof schema === 'object') {
+            let valid = validateObjectTypes(props, schema)
             if (!valid) throw new Error('INVALID DATA')
             if (typeof valid !== 'boolean') throw new Error(`Invalid data when constructing new ${name}. KEY: ${valid.key} VALUE: ${valid && valid.value ? valid.value.toString() : 'null | undefined'} REASON: ${valid.message} `)
         }
@@ -879,18 +949,18 @@ class Model extends Data {
     }
 }
 const constructModel = (model, data) => model(data)
-const buildModel = (name, validator, scheme) => data => constructModel(data => returnsPromise(validator) ? new Promise(async (res) => {
+const buildModel = (name, validator, schema) => data => constructModel(data => returnsPromise(validator) ? new Promise(async (res) => {
     let d = await validator(data)
-    let model = new Model(d || data, name, scheme)
+    let model = new Model(d || data, name, schema)
     return res(model)
-}) : new Model(data, name, validator, scheme), data)
-const makeModel = (database, name, validator, scheme) => {
+}) : new Model(data, name, validator, schema), data)
+const makeModel = (database, name, validator, schema) => {
     class ModelClass {
         constructor(data) {
             this.name = name
             this.validator = validator
-            this.scheme = scheme
-            this.model = buildModel(this.name, this.validator, this.scheme)
+            this.schema = schema
+            this.model = buildModel(this.name, this.validator, this.schema)
             if (data) this._doc = this.model(data)
         }
         save(data) {
@@ -943,7 +1013,7 @@ const makeModel = (database, name, validator, scheme) => {
     return ModelClass
 }
 const makeModels = (database, models) => {
-    return models.map(u => ({ name: u.name, model: makeModel(database, u.name, u.validator, u.scheme) })).reduce((a, b) => {
+    return models.map(u => ({ name: u.name, model: makeModel(database, u.name, u.validator, u.schema) })).reduce((a, b) => {
         a[b.name] = b.model
         return a
     }, {})

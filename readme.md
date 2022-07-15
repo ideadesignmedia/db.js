@@ -136,7 +136,7 @@ database.deleteMany(data => data.name === 'Sam').then(result => {
 
 ### Modeling data
 -----------
-#### `Model(data, name, validation, scheme)`
+#### `Model(data, name, validation, schema)`
 The Model class extends the Data class by adding a unique model name to the document and offers data validation.
 Like the Data class the first argument for the constructor is the data to be created. The second argument is the name of the model. The third argmuent is the validation function for the model's data, taking in the data and throwing an Error if the validation fails.
 
@@ -154,8 +154,8 @@ user = new Model({ name: 'Sam' }, 'User', userValidation)
 console.log(user)
 ```
 
-You can also define a scheme for the model to make it enforce type-saftey.
-The scheme is an object with the keys being the names of the properties and the values being the type of the property.
+You can also define a schema for the model to make it enforce type-saftey.
+The schema is an object with the keys being the names of the properties and the values being the type of the property.
 The type can be one of the following:
 'string', 'number', 'boolean', 'array, 'object', 'date'
 
@@ -165,7 +165,7 @@ You can provide an array of types to make sure the property is one of those type
 
 Example:
 ```
- const scheme = {
+ const schema = {
     name: 'string',
     age: 'number',
     isCool: 'boolean',
@@ -184,7 +184,7 @@ Example:
 ```
 **To better interact with the Model class you can create another class that wraps around the Model offering increased functionality by passing in the database instance, name, and validator.**
 
-#### `makeModel(database, name, validator, scheme)`
+#### `makeModel(database, name, validator, schema)`
 Creates a new class that extends the model class that will help template and validate modeled data.
 
 Example:
@@ -286,7 +286,7 @@ const modelTemplates = [
             let user = await db.find({_id: data.user}).catch(e => console.log(e))
             if (!user) throw new Error('User does not exist')
         },
-        scheme: {
+        schema: {
             amount: 'number',
             user: 'string',
             date: 'date',
