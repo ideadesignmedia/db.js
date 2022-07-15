@@ -3,6 +3,90 @@ const crypto = require('crypto')
 const path = require('path')
 const DBPATH = process.env.DBPATH || './database'
 const DBDEFAULT = path.resolve(path.join(DBPATH, 'data'))
+const checkType = (type, value) => {
+    switch (type) {
+        case 'string':
+            return typeof value === 'string';
+        case 'number':
+            return typeof value === 'number';
+        case 'boolean':
+            return typeof value === 'boolean';
+        case 'array':
+            return Array.isArray(value);
+        case 'object':
+            return typeof value === 'object';
+        case 'date':
+            return value instanceof Date;
+        default:
+            return false;
+    }
+}
+const validateObjectTypes = (obj, scheme) => {
+    const entries = Object.entries(scheme);
+    const objKeys = Object.keys(obj);
+    const objValues = Object.values(obj);
+    let isValid = true;
+    let reason = {key: '', value: '', message: ''}
+    for (let i = 0; i < objKeys.length; i++) {
+        if (typeof objValues[i] === 'undefined') continue 
+        if (!isValid) break;
+        let entry = entries.find(([key]) => key === objKeys[i]);
+        if (entry) {
+            if (typeof entry[1] === 'string') {
+                let isSolid = checkType(entry[1], objValues[i]);
+                if (!isSolid){
+                    isValid = false;
+                    reason.key = objKeys[i];
+                    reason.value = objValues[i];
+                    reason.message = `${objKeys[i]} is not a ${entry[1]}`;
+                }
+            } else if (typeof entry[1] === 'object') {
+                if (entry[1] instanceof Array) {
+                    if (entry[1].length < 1) {
+                        isValid = false;
+                        reason.key = objKeys[i];
+                        reason.value = objValues[i];
+                        reason.message = 'Invalid scheme, contains an empty array';
+                    } else if (entry[1].length === 1) {
+                        let type = entry[1][0];
+                        let isSolid = true
+                        for (let z = 0; z < objValues[i].length; z++) {
+                            isSolid = checkType(type, objValues[i][z]);
+                            if (!isSolid) break;
+                        }
+                        if (!isSolid) {
+                            isValid = false;
+                            reason.key = objKeys[i];
+                            reason.value = objValues[i];
+                            reason.message = `${objKeys[i]} must be an array of ${type}`;
+                        }
+                    } else {
+
+                        let isSolid = false
+                        for (let z = 0; z < entry[1].length; z++) {
+                            isSolid = checkType(entry[1][z], objValues[i]);
+                            if (isSolid) break;
+                        }
+                        if (!isSolid) {
+                            reason = {key: objKeys[i], value: objValues[i], message: 'value does not match any available types'}
+                            isValid = false;
+                        }
+                    }
+                } else {
+                    let isSolid = validateObjectTypes(objValues[i], entry[1]);
+                    if (!isSolid) {
+                        reason = {key: objKeys[i], value: objValues[i], message: 'Invalid object type: '+JSON.stringify(isSolid)}
+                        isValid = false;
+                    }
+                }
+            } else {
+                isValid = false
+                reason = {key: objKeys[i], value: objValues[i], message: 'Invalid scheme: '+typeof entry[1]}
+            }
+        }
+    }
+    return isValid || reason;
+}
 const filter = (data, filters) => {
     if (!data) return []
     var filterType = ''
@@ -207,7 +291,7 @@ const sort = (data, fields) => {
                     if (a instanceof Array || b instanceof Array) {
                         return a.length - b.length
                     } else {
-                        return Object.keys(a)?.length - Object.keys(b?.length)
+                        return Object.keys(a).length - Object.keys(b).length
                     }
                 }
                 case 'number': {
@@ -233,7 +317,7 @@ const sort = (data, fields) => {
                     if (a[sortField] instanceof Array || b[sortField] instanceof Array) {
                         return a[sortField].length - b[sortField].length
                     } else {
-                        return Object.keys(a[sortField])?.length - Object.keys(b[sortField]?.length)
+                        return Object.keys(a[sortField]).length - Object.keys(b[sortField].length)
                     }
                 }
                 case 'number': {
@@ -777,10 +861,15 @@ class db {
     }
 }
 const isPromise = (p) => typeof p === 'object' && typeof p.then === 'function'
-const returnsPromise = (f) => f && (f.constructor.name === 'AsyncFunction' || (typeof f === 'function' && typeof f === 'object' && typeof f.then === 'function'))
+const returnsPromise = (f) => f && (f.constructor.name === 'AsyncFunction' || f instanceof Promise || (typeof f === 'function' && typeof f === 'object' && typeof f.then === 'function'))
 class Model extends Data {
-    constructor(props, name, validator) {
-        super(props, name, validator)
+    constructor(props, name, validator, scheme) {
+        super(props, name, validator, scheme)
+        if (scheme && typeof scheme === 'object') {
+            let valid = validateObjectTypes(props, scheme)
+            if (!valid) throw new Error('INVALID DATA')
+            if (typeof valid !== 'boolean') throw new Error(`Invalid data when constructing new ${name}. KEY: ${valid.key} VALUE: ${valid && valid.value ? valid.value.toString() : 'null | undefined'} REASON: ${valid.message} `)
+        }
         if (typeof validator === 'function') {
             if (returnsPromise(validator)) throw new Error('Validator must be synchronous.')
             props = validator(props)
@@ -790,17 +879,18 @@ class Model extends Data {
     }
 }
 const constructModel = (model, data) => model(data)
-const buildModel = (name, validator) => data => constructModel(data => returnsPromise(validator) ? new Promise(async (res) => {
+const buildModel = (name, validator, scheme) => data => constructModel(data => returnsPromise(validator) ? new Promise(async (res) => {
     let d = await validator(data)
-    let model = new Model(d || data, name)
+    let model = new Model(d || data, name, scheme)
     return res(model)
-}) : new Model(data, name, validator), data)
-const makeModel = (database, name, validator) => {
+}) : new Model(data, name, validator, scheme), data)
+const makeModel = (database, name, validator, scheme) => {
     class ModelClass {
         constructor(data) {
             this.name = name
             this.validator = validator
-            this.model = buildModel(this.name, this.validator)
+            this.scheme = scheme
+            this.model = buildModel(this.name, this.validator, this.scheme)
             if (data) this._doc = this.model(data)
         }
         save(data) {
@@ -853,13 +943,13 @@ const makeModel = (database, name, validator) => {
     return ModelClass
 }
 const makeModels = (database, models) => {
-    return models.map(u => ({ name: u.name, model: makeModel(database, u.name, u.validator) })).reduce((a, b) => {
+    return models.map(u => ({ name: u.name, model: makeModel(database, u.name, u.validator, u.scheme) })).reduce((a, b) => {
         a[b.name] = b.model
         return a
     }, {})
 }
 const construct = (model, data) => {
-    return new Promise(async (res, rej) => {
+    return new Promise((res, rej) => {
         try {
             let d = new model(data)
             if (isPromise(d._doc)) {

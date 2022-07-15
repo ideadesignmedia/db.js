@@ -56,7 +56,7 @@ database.save(readyData).then(result => {
 ```
 let users = [{ name: 'Sam' }, { name: 'Lucy' }, { name: 'Jim' }]
 database.save(users.map(u => new Data(u))).then(r => {
-    console.log(r) //number of saved items?
+    console.log(r) // Returns the saved items
 })
 ```
 
@@ -136,7 +136,7 @@ database.deleteMany(data => data.name === 'Sam').then(result => {
 
 ### Modeling data
 -----------
-#### `Model(data, name, validation)`
+#### `Model(data, name, validation, scheme)`
 The Model class extends the Data class by adding a unique model name to the document and offers data validation.
 Like the Data class the first argument for the constructor is the data to be created. The second argument is the name of the model. The third argmuent is the validation function for the model's data, taking in the data and throwing an Error if the validation fails.
 
@@ -154,25 +154,53 @@ user = new Model({ name: 'Sam' }, 'User', userValidation)
 console.log(user)
 ```
 
+You can also define a scheme for the model to make it enforce type-saftey.
+The scheme is an object with the keys being the names of the properties and the values being the type of the property.
+The type can be one of the following:
+'string', 'number', 'boolean', 'array, 'object', 'date'
+
+For objects and arrays you can provide an object/array with nested objects/arrays to further define the values of the property.
+
+You can provide an array of types to make sure the property is one of those types.
+
+Example:
+```
+ const scheme = {
+    name: 'string',
+    age: 'number',
+    isCool: 'boolean',
+    friends: 'array',
+    address: 'object',
+    address2: {
+        street: 'string',
+        city: 'string',
+        state: 'string',
+        zip: 'number'
+    },
+    birthday: 'date',
+    activity: ['string', 'object'],
+    hobbies: [{ name: 'string', age: 'number' }]
+ }
+```
 **To better interact with the Model class you can create another class that wraps around the Model offering increased functionality by passing in the database instance, name, and validator.**
 
-#### `createModel(database, name, validator)`
+#### `makeModel(database, name, validator, scheme)`
 Creates a new class that extends the model class that will help template and validate modeled data.
 
 Example:
 ```
-const { db, createModel } = require('@ideadesignmedia/db.js')
+const { db, makeModel } = require('@ideadesignmedia/db.js')
 const database = new db('Main')
 function userValidation(data) {
     if (!data) throw new Error('Missing data')
     if (!data.email) throw new Error('Missing Email')
 }
-const User = createModel(database, 'user', userValidation)
+const User = makeModel(database, 'user', userValidation)
 const Users = new User
 ```
 
 Now that you have created the User class you can use it to handle the 'user' Model.
-The ModelClass that the createModel function created can be used for saving, finding, and deleting items with the 'user' model.
+The ModelClass that the makeModel function created can be used for saving, finding, and deleting items with the 'user' model.
 
 Example:
 ```
@@ -231,12 +259,12 @@ Users.deleteMany({}).then(r => {
 })
 ```
 
-#### `createModels(database, models)` - get an object with unique ModelClasses from a array of templates.
+#### `makeModels(database, models)` - get an object with unique ModelClasses from a array of templates.
 **NOTE: the template name determines object key case.**
 
 Example:
 ```
-const { db, createModels } = require('@ideadesignmedia/db.js')
+const { db, makeModels } = require('@ideadesignmedia/db.js')
 const database = new db('Main')
 const modelTemplates = [
     {
@@ -257,10 +285,17 @@ const modelTemplates = [
             if (!data.user) throw new Error('Missing user that payment is associated with')
             let user = await db.find({_id: data.user}).catch(e => console.log(e))
             if (!user) throw new Error('User does not exist')
+        },
+        scheme: {
+            amount: 'number',
+            user: 'string',
+            date: 'date',
+            type: 'string',
+            code: 'number'
         }
     }
 ]
-const models = createModels(database, modelTemplates) // {user: [Class], payment: [Class]}
+const models = makeModels(database, modelTemplates) // {user: [Class], payment: [Class]}
 // You can now destructure into individual models or access them as models.user etc.
 const { payment, user } = models
 ```
